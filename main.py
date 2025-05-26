@@ -4,12 +4,14 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from display_driver import init_display, display_image
+from display_driver import init_display
 from data_fetch import get_system_info
 from ui import render_ui
-from media_controls import media_key_listener, connect_mpd
+from media_controls import start_media_key_listener
 from notification import draw_notification_if_active
 from bluetooth_manager import start_reconnection_thread
+
+# Iniciar reconexión BT automática
 start_reconnection_thread()
 
 def move_mp3_assets():
@@ -23,33 +25,43 @@ def move_mp3_assets():
             shutil.move(str(mp3_file), str(dest))
             logging.info(f"🎵 MP3 movido: {mp3_file.name}")
 
-    # 🟢 Asegurar actualización y reproducción en loop
     os.system("mpc update")
     os.system("mpc clear && mpc add / && mpc play")
     os.system("mpc repeat on")
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    logging.basicConfig(level=logging.INFO)
 
+    # Cargar música
     move_mp3_assets()
+
+    # Iniciar pantalla e-ink
     epd = init_display()
-    mpd = connect_mpd()
 
-    # 🟢 Listener de teclas multimedia (BT)
-    threading.Thread(target=media_key_listener, args=(mpd,), daemon=True).start()
+    # Iniciar listener multimedia en segundo plano
+    start_media_key_listener()
 
-    mode = 0
+    # Lógica de rotación y refresco
+    module_index = 0
+    last_module_change = time.time()
+    last_refresh = 0
+
     while True:
-        try:
+        current_time = time.time()
+
+        # Rotar módulo cada 5 segundos
+        if current_time - last_module_change >= 5:
+            module_index = (module_index + 1) % 4
+            last_module_change = current_time
+
+        # Refrescar UI cada segundo
+        if current_time - last_refresh >= 1:
             info = get_system_info()
-            img = render_ui(info, mode)
-            draw_notification_if_active(img)
-            display_image(epd, img)
-            mode = (mode + 1) % 4
-            time.sleep(5)
-        except Exception as e:
-            logging.error(f"❌ Error en UI loop: {e}")
-            time.sleep(2)
+            render_ui(epd, info, module_index)
+            draw_notification_if_active(epd)
+            last_refresh = current_time
+
+        time.sleep(0.1)
 
 if __name__ == "__main__":
     main()

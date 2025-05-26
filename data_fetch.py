@@ -5,7 +5,6 @@ from datetime import datetime
 from mpd import MPDClient
 from bluetooth_manager import bluetooth_status
 
-
 # Batería desde INA219
 try:
     import board
@@ -32,12 +31,47 @@ def get_wifi_info():
 def setup_bluetooth_audio():
     try:
         result = subprocess.run(
-            ["/home/4rgs/spidsZero/scripts/setup_bluetooth_audio.sh"],
+            ["/home/4rgs/RPI2WZeroLAB/scripts/setup_bluetooth_audio.sh"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
         return result.stdout.strip()
     except Exception as e:
         return f"Error al configurar BT: {e}"
+
+def get_bluetooth_info():
+    try:
+        # Obtener la MAC del dispositivo actualmente conectado
+        output = subprocess.check_output(["bt-device", "--list"], text=True)
+        match = re.search(r'([0-9A-F:]{17})\s+\((.*?)\)', output)
+        if not match:
+            raise ValueError("No conectado")
+
+        mac, name = match.groups()
+
+        # Confirmar que está conectado
+        info_output = subprocess.check_output(["bt-device", "-i", mac], text=True)
+        if "Connected: 1" not in info_output:
+            raise ValueError("No conectado activamente")
+
+        discoverable = get_discoverable_state()
+        own_mac = get_own_mac()
+
+        return {
+            "bt_status": "Conectado",
+            "bt_peer_mac": mac,
+            "bt_name": name,
+            "bt_discoverable": discoverable,
+            "bt_own_mac": own_mac
+        }
+
+    except Exception:
+        return {
+            "bt_status": bluetooth_status,
+            "bt_peer_mac": "N/A",
+            "bt_name": "Ninguno",
+            "bt_discoverable": get_discoverable_state(),
+            "bt_own_mac": get_own_mac()
+        }
 
 def get_discoverable_state():
     try:
@@ -47,38 +81,13 @@ def get_discoverable_state():
     except:
         return "N/A"
 
-def get_bluetooth_info():
+def get_own_mac():
     try:
-        # Obtener lista de dispositivos emparejados
-        paired_output = subprocess.check_output(["bluetoothctl", "paired-devices"], text=True)
-        devices = re.findall(r"Device\s+([0-9A-F:]{17})\s+(.*)", paired_output)
-
-        for mac, name in devices:
-            info_output = subprocess.check_output(["bluetoothctl", "info", mac], text=True)
-            if "Connected: yes" in info_output:
-                alias = re.search(r"Alias:\s+(.*)", info_output)
-                return {
-                    "bt_status": "Conectado",
-                    "bt_peer_mac": mac,
-                    "bt_name": alias.group(1) if alias else name,
-                    "bt_discoverable": get_discoverable_state()
-                }
-
-        # Si ningún dispositivo está conectado, mostrar el estado de reconexión
-        return {
-            "bt_status": bluetooth_status,
-            "bt_peer_mac": "N/A",
-            "bt_name": "Ninguno",
-            "bt_discoverable": get_discoverable_state()
-        }
-
-    except Exception:
-        return {
-            "bt_status": "Error",
-            "bt_peer_mac": "Error",
-            "bt_name": "Error",
-            "bt_discoverable": "N/A"
-        }
+        out = subprocess.check_output(["hciconfig"], text=True)
+        match = re.search(r"hci0.*?\n\s*BD Address:\s*([0-9A-F:]{17})", out, re.DOTALL)
+        return match.group(1) if match else "N/A"
+    except:
+        return "N/A"
 
 def get_top_processes():
     procs = []
@@ -141,6 +150,7 @@ def get_system_info():
         "bt_peer_mac": bt.get("bt_peer_mac", "N/A"),
         "bt_discoverable": bt.get("bt_discoverable", "N/A"),
         "bt_name": bt.get("bt_name", "N/A"),
+        "bt_own_mac": bt.get("bt_own_mac", "N/A"),
         "top_processes": get_top_processes(),
         **mpd_info
     }

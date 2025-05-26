@@ -1,32 +1,45 @@
-from PIL import ImageDraw, ImageFont
-from datetime import datetime, timedelta
+from PIL import Image, ImageDraw, ImageFont
+import time
 
-_notification = None
-_notification_expire = None
+WIDTH, HEIGHT = 250, 122
+notification_active = False
+notification_text = ""
+notification_time = 0
 
-def set_notification(message, duration=2.5):
-    global _notification, _notification_expire
-    _notification = message
-    _notification_expire = datetime.now() + timedelta(seconds=duration)
+font_notify = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
 
-def draw_notification_if_active(img):
-    global _notification, _notification_expire
-    if _notification and datetime.now() < _notification_expire:
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
-        except:
-            font = ImageFont.load_default()
+def set_notification(text):
+    global notification_text, notification_active, notification_time
+    notification_text = text
+    notification_active = True
+    notification_time = time.time()
 
-        bbox = draw.textbbox((0, 0), _notification, font=font)
-        w = bbox[2] - bbox[0]
-        h = bbox[3] - bbox[1]
-        x = (img.width - w) // 2
-        y = 5
+def draw_notification_if_active(epd):
+    global notification_active
 
-        draw.rectangle((0, 0, img.width, h + 10), fill=255)
-        draw.rectangle((2, 2, img.width - 2, h + 8), outline=0)
-        draw.text((x, y), _notification, font=font, fill=0)
-    elif _notification:
-        _notification = None
-        _notification_expire = None
+    if not notification_active:
+        return
+
+    # Si pasaron más de 2.5s, desactiva
+    if time.time() - notification_time > 2.5:
+        notification_active = False
+        return
+
+    # Crear imagen transparente encima
+    from display_driver import WIDTH, HEIGHT  # por si no lo tienes definido
+    image = Image.new("1", (WIDTH, HEIGHT), 255)
+    draw = ImageDraw.Draw(image)
+
+    # Fondo rectangular en parte media
+    box_height = 20
+    y_pos = HEIGHT // 2 - box_height // 2
+    draw.rectangle([0, y_pos, WIDTH, y_pos + box_height], fill=255)
+    w, h = draw.textsize(notification_text, font=font_notify)
+    x = (WIDTH - w) // 2
+    y = y_pos + (box_height - h) // 2
+    draw.text((x, y), notification_text, font=font_notify, fill=0)
+
+    if hasattr(epd, "displayPartial"):
+        epd.displayPartial(epd.getbuffer(image))
+    else:
+        epd.display(epd.getbuffer(image))
