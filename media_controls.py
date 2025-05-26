@@ -13,15 +13,19 @@ def connect_mpd():
         logging.warning(f"⚠️ No se pudo conectar a MPD: {e}")
         return None
 
-def find_bluetooth_input():
-    for path in list_devices():
-        try:
-            device = InputDevice(path)
-            if "Bluetooth" in device.name or "AVRCP" in device.name or "Redmi" in device.name:
-                logging.info(f"✅ Input Bluetooth encontrado: {device.name} en {path}")
-                return path
-        except Exception:
-            continue
+def find_bluetooth_input(retries=30, delay=10):
+    for attempt in range(retries):
+        for path in list_devices():
+            try:
+                device = InputDevice(path)
+                name = device.name.lower()
+                if "bluetooth" in name or "avrcp" in name or "buds" in name or "headset" in name:
+                    logging.info(f"🎧 Input Bluetooth encontrado: {device.name} en {path}")
+                    return path
+            except Exception:
+                continue
+        logging.info(f"⏳ Esperando input BT ({attempt + 1}/{retries})...")
+        time.sleep(delay)
     logging.warning("⚠️ No se detectó ningún input Bluetooth compatible.")
     return None
 

@@ -3,6 +3,8 @@ import subprocess
 import re
 from datetime import datetime
 from mpd import MPDClient
+from bluetooth_manager import bluetooth_status
+
 
 # Batería desde INA219
 try:
@@ -47,6 +49,7 @@ def get_discoverable_state():
 
 def get_bluetooth_info():
     try:
+        # Obtener lista de dispositivos emparejados
         paired_output = subprocess.check_output(["bluetoothctl", "paired-devices"], text=True)
         devices = re.findall(r"Device\s+([0-9A-F:]{17})\s+(.*)", paired_output)
 
@@ -61,8 +64,9 @@ def get_bluetooth_info():
                     "bt_discoverable": get_discoverable_state()
                 }
 
+        # Si ningún dispositivo está conectado, mostrar el estado de reconexión
         return {
-            "bt_status": "Desconectado",
+            "bt_status": bluetooth_status,
             "bt_peer_mac": "N/A",
             "bt_name": "Ninguno",
             "bt_discoverable": get_discoverable_state()

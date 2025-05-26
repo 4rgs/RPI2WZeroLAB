@@ -9,6 +9,8 @@ from data_fetch import get_system_info
 from ui import render_ui
 from media_controls import media_key_listener, connect_mpd
 from notification import draw_notification_if_active
+from bluetooth_manager import start_reconnection_thread
+start_reconnection_thread()
 
 def move_mp3_assets():
     source_dir = Path(__file__).parent / "assets"
